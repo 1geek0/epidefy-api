@@ -18,8 +18,10 @@
     "@cloudant/cloudant": "^3.0.2",
     "body-parser": "^1.17.x",
     "cfenv": "^1.0.x",
+    "cors": "^2.8.5",
     "dotenv": "^4.0.0",
     "express": "^4.15.x",
+    "ibm-watson": "^4.2.1",
     "mongodb": "^3.0.10"
   },
   "author": "IBM Corp",

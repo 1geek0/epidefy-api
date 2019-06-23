@@ -1,7 +1,17 @@
 var express = require("express");
+var cors = require('cors')
 var app = express();
 var cfenv = require("cfenv");
 var bodyParser = require('body-parser')
+const AssistantV1 = require('ibm-watson/assistant/v1')
+
+app.use(cors())
+
+const service = new AssistantV1({
+  version: '2019-02-28',
+  iam_apikey: 'DcQf5kRwZ_9E2NRt9RjtfsVyhfsF5lG14FZTUYUb8Cng',
+  url: 'https://gateway-lon.watsonplatform.net/assistant/api'
+})
 
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({ extended: false }))
@@ -22,6 +32,7 @@ var dbName = 'mydb';
 
 var insertOne = {};
 var getAll = {};
+var deleteAll = {};
 
 insertOne.cloudant = function(doc, response) {
   mydb.insert(doc, function(err, body, header) {
@@ -36,43 +47,29 @@ insertOne.cloudant = function(doc, response) {
 }
 
 getAll.cloudant = function(response) {
-  var names = [];  
+  var reports = [];  
   mydb.list({ include_docs: true }, function(err, body) {
     if (!err) {
       body.rows.forEach(function(row) {
-        if(row.doc.name)
-          names.push(row.doc.name);
+        if(row.doc)
+          reports.push(row.doc);
       });
-      response.json(names);
+      console.log(reports);
+      response.json(reports);
     }
   });
-  //return names;
+  //return all the reports;
 }
 
-let collectionName = 'mycollection'; // MongoDB requires a collection name.
-
-insertOne.mongodb = function(doc, response) {
-  mydb.collection(collectionName).insertOne(doc, function(err, body, header) {
-    if (err) {
-      console.log('[mydb.insertOne] ', err.message);
-      response.send("Error");
-      return;
-    }
-    doc._id = body.id;
-    response.send(doc);
-  });
-}
-
-getAll.mongodb = function(response) {
-  var names = [];
-  mydb.collection(collectionName).find({}, {fields:{_id: 0, count: 0}}).toArray(function(err, result) {
+deleteAll.cloudant = function(response) {
+  mydb.list({include_docs:true}, function(err, body){
     if (!err) {
-      result.forEach(function(row) {
-        names.push(row.name);
-      });
-      response.json(names);
+      body.row.forEach(function(row) {
+        if(row.doc)
+          mydb.de
+      })
     }
-  });
+  })
 }
 
 /* Endpoint to greet and add a new visitor to database.
@@ -81,16 +78,25 @@ getAll.mongodb = function(response) {
 *   "name": "Bob"
 * }
 */
-app.post("/api/visitors", function (request, response) {
-  var userName = request.body.name;
-  var doc = { "name" : userName };
+app.post("/data/cf", function (request, response, next) {
+  // var userName = request.body.name;
+  var doc = request.body;
   if(!mydb) {
     console.log("No database.");
     response.send(doc);
     return;
   }
-  insertOne[vendor](doc, response);
+  insertOne.cloudant(doc, response);
 });
+
+app.post("/data/android", function (request, response, next) {
+
+})
+
+app.get('/data/dashboard', function(request, response, next) {
+
+  getAll.cloudant(response)
+})
 
 /**
  * Endpoint to get a JSON array of all the visitors in the database
@@ -103,14 +109,14 @@ app.post("/api/visitors", function (request, response) {
  * [ "Bob", "Jane" ]
  * @return An array of all the visitor names
  */
-app.get("/api/visitors", function (request, response) {
-  var names = [];
-  if(!mydb) {
-    response.json(names);
-    return;
-  }
-  getAll[vendor](response);
-});
+// app.get("/api/visitors", function (request, response) {
+//   var names = [];
+//   if(!mydb) {
+//     response.json(names);
+//     return;
+//   }
+//   getAll.cloudant(response);
+// });
 
 // load local VCAP configuration  and service credentials
 var vcapLocal;
@@ -123,38 +129,8 @@ const appEnvOpts = vcapLocal ? { vcap: vcapLocal} : {}
 
 const appEnv = cfenv.getAppEnv(appEnvOpts);
 
-if (appEnv.services['compose-for-mongodb'] || appEnv.getService(/.*[Mm][Oo][Nn][Gg][Oo].*/)) {
-  // Load the MongoDB library.
-  var MongoClient = require('mongodb').MongoClient;
-
-  dbName = 'mydb';
-
   // Initialize database with credentials
-  if (appEnv.services['compose-for-mongodb']) {
-    MongoClient.connect(appEnv.services['compose-for-mongodb'][0].credentials.uri, null, function(err, db) {
-      if (err) {
-        console.log(err);
-      } else {
-        mydb = db.db(dbName);
-        console.log("Created database: " + dbName);
-      }
-    });
-  } else {
-    // user-provided service with 'mongodb' in its name
-    MongoClient.connect(appEnv.getService(/.*[Mm][Oo][Nn][Gg][Oo].*/).credentials.uri, null,
-      function(err, db) {
-        if (err) {
-          console.log(err);
-        } else {
-          mydb = db.db(dbName);
-          console.log("Created database: " + dbName);
-        }
-      }
-    );
-  }
-
-  vendor = 'mongodb';
-} else if (appEnv.services['cloudantNoSQLDB'] || appEnv.getService(/[Cc][Ll][Oo][Uu][Dd][Aa][Nn][Tt]/)) {
+if (appEnv.services['cloudantNoSQLDB'] || appEnv.getService(/[Cc][Ll][Oo][Uu][Dd][Aa][Nn][Tt]/)) {
   // Load the Cloudant library.
   var Cloudant = require('@cloudant/cloudant');
 
@@ -186,8 +162,11 @@ if(cloudant) {
 }
 
 //serve static file (index.html, images, css)
-app.use(express.static(__dirname + '/views'));
+// app.use(express.static(__dirname + '/views'));
 
+// const params = {
+//   workspace_id: 'e818ff2d-893d-4885-8c89-6c4af0c13359'
+// }
 
 
 var port = process.env.PORT || 3000
